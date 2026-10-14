@@ -1,0 +1,232 @@
+<title>Where Claude Code Runs</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column of three "zone maps" (your device / Anthropic cloud / GitHub), then a comparison table */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --fg: #1c2230;
+  --muted: #5b6474;
+  --line: #d9dde5;
+  --local: #1f7a5a;      /* your computer */
+  --local-tint: #e6f3ee;
+  --cloud: #4a4fc4;      /* Anthropic cloud */
+  --cloud-tint: #ecedfb;
+  --gh: #3d4450;         /* GitHub */
+  --gh-tint: #eceef1;
+  --here: #b4530f;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151c; --surface: #1a1e27; --fg: #e6e9ef; --muted: #9aa3b2; --line: #2c3240;
+    --local: #5cc79f; --local-tint: #16302a; --cloud: #9b9ff5; --cloud-tint: #23254a;
+    --gh: #b8bfcc; --gh-tint: #252a34; --here: #f0a35e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151c; --surface: #1a1e27; --fg: #e6e9ef; --muted: #9aa3b2; --line: #2c3240;
+  --local: #5cc79f; --local-tint: #16302a; --cloud: #9b9ff5; --cloud-tint: #23254a;
+  --gh: #b8bfcc; --gh-tint: #252a34; --here: #f0a35e; color-scheme: dark;
+}
+
+body {
+  background: var(--bg); color: var(--fg);
+  font: 16px/1.55 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); }
+h2 { font-size: 1.45rem; }
+p { margin: 0; }
+code, .mono { font-family: var(--f-mono); font-size: .86em; }
+.lede { max-width: 64ch; color: var(--muted); font-size: 1.08rem; }
+header { display: grid; gap: 14px; }
+
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: .9rem; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw.local { background: var(--local); } .sw.cloud { background: var(--cloud); } .sw.gh { background: var(--gh); }
+
+/* One setup */
+.mode { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; display: grid; gap: 18px; }
+.mode-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.tag { font: 500 .72rem var(--f-mono); letter-spacing: .06em; text-transform: uppercase; color: var(--here); border: 1px solid currentColor; border-radius: 999px; padding: 2px 9px; }
+.mode-sub { color: var(--muted); max-width: 70ch; }
+
+.zones { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.zone { border-radius: 10px; padding: 12px; display: grid; align-content: start; gap: 8px; min-width: 0; }
+.zone.local { background: var(--local-tint); }
+.zone.cloud { background: var(--cloud-tint); }
+.zone.gh { background: var(--gh-tint); }
+.zone-label { font: 500 .7rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; }
+.zone.local .zone-label { color: var(--local); }
+.zone.cloud .zone-label { color: var(--cloud); }
+.zone.gh .zone-label { color: var(--gh); }
+.box { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; font-size: .93rem; line-height: 1.35; }
+.box b { display: block; font-weight: 600; }
+.box small { color: var(--muted); font-size: .84rem; }
+.box.agent { border: 2px solid var(--here); }
+.box.agent b::after { content: " ← the agent runs here"; font: 500 .72rem var(--f-mono); color: var(--here); }
+.empty { color: var(--muted); font-size: .88rem; font-style: italic; padding: 4px 2px; }
+
+.flow { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; color: var(--fg); }
+.flow li::marker { color: var(--muted); font-family: var(--f-mono); font-size: .85em; }
+.flow-title { font: 500 .72rem var(--f-mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+/* Comparison table */
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 680px; font-size: .94rem; }
+th, td { text-align: left; vertical-align: top; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+thead th { font-family: var(--f-display); font-size: 1rem; background: var(--bg); }
+thead th.this { color: var(--here); }
+tbody th { font-weight: 600; color: var(--muted); width: 18%; }
+
+.notes { display: grid; gap: 10px; max-width: 70ch; }
+.notes h2 { margin-bottom: 4px; }
+.notes ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+@media (max-width: 720px) {
+  .zones { grid-template-columns: 1fr; }
+  .mode { padding: 18px; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Where Claude Code runs</h1>
+    <p class="lede">The same Claude Code agent can run in three places. The difference that matters most is <strong>which machine runs the agent loop</strong>: the program that reads files, runs commands and asks the model what to do next. In every setup the model itself runs on Anthropic's servers.</p>
+    <div class="legend" aria-label="Legend">
+      <span><i class="sw local"></i>Your computer or phone</span>
+      <span><i class="sw cloud"></i>Anthropic cloud</span>
+      <span><i class="sw gh"></i>GitHub</span>
+    </div>
+  </header>
+
+  <!-- 1. Web -->
+  <section class="mode" aria-labelledby="m-web">
+    <div class="mode-head">
+      <h2 id="m-web">Claude Code on the web</h2>
+      <span class="tag">You are here</span>
+    </div>
+    <p class="mode-sub">Your browser or phone is just a window. The work happens in a temporary Linux container that Anthropic starts for this session. It gets your code by cloning it from GitHub, and it keeps its work by pushing back to GitHub.</p>
+    <div class="zones">
+      <div class="zone local">
+        <span class="zone-label">Your device</span>
+        <div class="box"><b>Browser or Claude app</b><small>claude.ai/code. Shows the chat, diffs and files. You can close it while Claude keeps working.</small></div>
+        <div class="empty">No code, no terminal, nothing installed.</div>
+      </div>
+      <div class="zone cloud">
+        <span class="zone-label">Anthropic cloud</span>
+        <div class="box agent"><b>Session container</b><small>Short-lived Linux box. Fresh clone of your repo, bash, git, Chromium. Reclaimed after you go idle.</small></div>
+        <div class="box"><b>Environment settings</b><small>Network policy (outbound traffic goes through a proxy), env vars and secrets, setup script.</small></div>
+        <div class="box"><b>Claude model API</b><small>Gets the conversation and file contents, replies with the next step.</small></div>
+        <div class="box"><b>Connectors</b><small>Gmail, Calendar and others you connected on claude.ai.</small></div>
+      </div>
+      <div class="zone gh">
+        <span class="zone-label">GitHub</span>
+        <div class="box"><b>Your repository</b><small><code>tuankhoi98/Test02242020</code></small></div>
+        <div class="box"><b>Claude GitHub App</b><small>Gives the container permission to clone and push, scoped to repos you allowed.</small></div>
+        <div class="box"><b>Branch and pull requests</b><small>Work lands on <code>claude/…</code> branches. You review and merge.</small></div>
+      </div>
+    </div>
+    <div>
+      <p class="flow-title">What happened when you sent your prompt</p>
+      <ol class="flow">
+        <li>claude.ai started a container from your environment's settings.</li>
+        <li>The container cloned your repo and checked out <code>claude/code-architecture-comparison-6lczvh</code>.</li>
+        <li>The agent loop ran in the container: ask the model, run a tool (write a file, run git), repeat.</li>
+        <li>It committed and pushed this page to the branch on GitHub.</li>
+        <li>When the session goes idle the container is deleted. Only what was pushed survives.</li>
+      </ol>
+    </div>
+  </section>
+
+  <!-- 2. Terminal -->
+  <section class="mode" aria-labelledby="m-cli">
+    <div class="mode-head"><h2 id="m-cli">Claude Code in the terminal</h2></div>
+    <p class="mode-sub">You install the <code>claude</code> command on your own machine and run it inside a project folder. The agent loop is a local process. It edits your real files and runs commands in your shell, as you, after asking permission.</p>
+    <div class="zones">
+      <div class="zone local">
+        <span class="zone-label">Your computer</span>
+        <div class="box agent"><b><code>claude</code> CLI</b><small>Runs in your terminal or IDE.</small></div>
+        <div class="box"><b>Your project folder</b><small>Edited in place. No clone needed.</small></div>
+        <div class="box"><b>Your shell and tools</b><small>Your installed SDKs, databases, Docker, local network, logins.</small></div>
+        <div class="box"><b>Local MCP servers</b><small>Configured in your settings files.</small></div>
+      </div>
+      <div class="zone cloud">
+        <span class="zone-label">Anthropic cloud</span>
+        <div class="box"><b>Claude model API</b><small>Only the model calls leave your machine: the conversation plus whatever files Claude reads.</small></div>
+      </div>
+      <div class="zone gh">
+        <span class="zone-label">GitHub</span>
+        <div class="box"><b>Optional</b><small>Claude uses your own git credentials when it pushes. GitHub isn't involved otherwise.</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Desktop -->
+  <section class="mode" aria-labelledby="m-desk">
+    <div class="mode-head"><h2 id="m-desk">Claude Desktop app</h2></div>
+    <p class="mode-sub">A native Mac or Windows app. In its Code view it runs the same Claude Code engine locally on a folder you pick, like the terminal, but with a graphical interface. It can also start and monitor cloud sessions like this one, and its chat side can reach things on your machine through local extensions.</p>
+    <div class="zones">
+      <div class="zone local">
+        <span class="zone-label">Your computer</span>
+        <div class="box agent"><b>Desktop app, local session</b><small>Same engine as the CLI, with visual diffs and approvals.</small></div>
+        <div class="box"><b>Your project folder and tools</b><small>Edited in place, as with the CLI.</small></div>
+        <div class="box"><b>Desktop extensions</b><small>Local MCP servers, plus app features such as a built-in browser.</small></div>
+      </div>
+      <div class="zone cloud">
+        <span class="zone-label">Anthropic cloud</span>
+        <div class="box"><b>Claude model API</b><small>Same as the CLI.</small></div>
+        <div class="box"><b>Cloud sessions (optional)</b><small>Start one from the app and it runs in a container exactly like the web setup above.</small></div>
+      </div>
+      <div class="zone gh">
+        <span class="zone-label">GitHub</span>
+        <div class="box"><b>Local sessions</b><small>Your own git credentials, as with the CLI.</small></div>
+        <div class="box"><b>Cloud sessions</b><small>Through the Claude GitHub App, as on the web.</small></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison -->
+  <section aria-labelledby="cmp" style="display:grid;gap:14px">
+    <h2 id="cmp">Side by side</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th scope="col"></th><th scope="col" class="this">Web (this session)</th><th scope="col">Terminal CLI</th><th scope="col">Desktop app</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Agent runs on</th><td>Anthropic container</td><td>Your computer</td><td>Your computer, or a cloud container if you choose</td></tr>
+          <tr><th scope="row">Gets your code by</th><td>Cloning from GitHub</td><td>Reading the local folder</td><td>Local folder, or GitHub clone for cloud sessions</td></tr>
+          <tr><th scope="row">Work is saved by</th><td>Commit and push. The container is deleted later.</td><td>Files change on disk right away</td><td>Disk for local sessions; push for cloud sessions</td></tr>
+          <tr><th scope="row">Your computer must stay on</th><td>No. Works from a phone.</td><td>Yes</td><td>Yes, for local sessions</td></tr>
+          <tr><th scope="row">Can reach</th><td>The internet hosts your network policy allows, and claude.ai connectors</td><td>Everything you can: local services, VPN, Docker, hardware</td><td>Same as CLI, plus desktop extensions</td></tr>
+          <tr><th scope="row">If something goes wrong</th><td>Contained in a throwaway box. Worst case is a bad branch.</td><td>Runs as you, so it can touch your real files. Permission prompts guard it.</td><td>Same as CLI for local sessions</td></tr>
+          <tr><th scope="row">Good for</th><td>Well-scoped tasks, running several in parallel, working away from your desk, PR-based review</td><td>Day-to-day development, anything that needs your local setup</td><td>The CLI workflow without a terminal, plus managing cloud sessions</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="notes" aria-labelledby="tips">
+    <h2 id="tips">Things to know on the web</h2>
+    <ul>
+      <li>Anything not pushed to GitHub is gone once the container is reclaimed.</li>
+      <li>Claude only sees repositories you granted the Claude GitHub App. You add more in your GitHub settings.</li>
+      <li>If your project needs a tool or package installed, put it in the environment's setup script so every new session has it.</li>
+      <li>Blocked downloads or API calls usually mean the network policy doesn't allow that host. You can change the policy in the environment settings.</li>
+      <li>Claude creates a pull request only when you ask for one.</li>
+    </ul>
+  </section>
+</div>
